@@ -1,28 +1,53 @@
-import { Injectable } from '@nestjs/common';
-import { CreateClassifyDto } from './dto/create-classify.dto';
+import {
+  Injectable,
+  HttpException,
+  HttpStatus,
+  BadGatewayException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import axios from 'axios';
 
 @Injectable()
 export class ClassifyService {
-  create(createClassifyDto: CreateClassifyDto) {
-    return 'This action adds a new classify';
-  }
+  async classifyName(name: string) {
+    let apiResponse: any;
 
-  classifyName(name: string) {
-
-    if(!name) {
-      return res.status(400).json({ error: 'Name parameter is required' }); 
-    }
-    const res = axios
-      .get(`https://api.genderize.io/?name=${name}`)
-      .then((response) => response.data)
-      .catch((error) => {
-        console.error('Error fetching classify data:', error);
-        throw new Error('Failed to fetch classify data');
+    try {
+      const response = await axios.get('https://api.genderize.io', {
+        params: { name },
+        timeout: 10000,
       });
+      apiResponse = response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new BadGatewayException('Upstream API failure');
+      }
+      throw new InternalServerErrorException('Failed to reach external API');
+    }
 
-    console.log('Classify data:', res);
-    return res;
+    if (apiResponse.gender === null || apiResponse.count === 0) {
+      throw new HttpException(
+        'No prediction available for the provided name',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const gender: string = apiResponse.gender;
+    const probability: number = apiResponse.probability;
+    const sampleSize: number = apiResponse.count;
+    const isConfident: boolean = probability >= 0.7 && sampleSize >= 100;
+    const processedAt: string = new Date().toISOString();
+
+    return {
+      status: 'success',
+      data: {
+        name: apiResponse.name,
+        gender,
+        probability,
+        sample_size: sampleSize,
+        is_confident: isConfident,
+        processed_at: processedAt,
+      },
+    };
   }
-
 }

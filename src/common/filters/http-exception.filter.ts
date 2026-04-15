@@ -23,7 +23,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : { message: 'Internal server error' };
 
-    // Support both string messages and NestJS validation error objects
     const message =
       typeof exceptionResponse === 'string'
         ? exceptionResponse

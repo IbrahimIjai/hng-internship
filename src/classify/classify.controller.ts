@@ -1,11 +1,9 @@
 import {
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
+  Query,
+  BadRequestException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ClassifyService } from './classify.service';
 
@@ -14,7 +12,15 @@ export class ClassifyController {
   constructor(private readonly classifyService: ClassifyService) {}
 
   @Get()
-  classify(@Param('name') name: string) {
+  classify(@Query('name') name: any) {
+    if (name === undefined || name === null || name === '') {
+      throw new BadRequestException('Missing or empty name parameter');
+    }
+
+    if (typeof name !== 'string') {
+      throw new UnprocessableEntityException('name must be a string');
+    }
+
     return this.classifyService.classifyName(name);
   }
 }
