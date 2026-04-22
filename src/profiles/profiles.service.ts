@@ -5,35 +5,25 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import axios from 'axios';
-import { v7 as uuidv7 } from 'uuid';
 import {
   deleteProfile,
   findProfileById,
   findProfileByName,
   insertProfile,
-  listProfiles,
+  queryProfiles,
   type ProfileRecord,
+  type ProfileQueryResult,
 } from '../database/sqlite';
+import { getCountryNameByCode } from './country.util';
+import type { ValidatedProfileQuery } from './profiles.types';
+import { createUuidV7 } from '../common/uuidv7';
 
 @Injectable()
 export class ProfilesService {
-  private getSummaryProfile(profile: ProfileRecord) {
-    return {
-      id: profile.id,
-      name: profile.name,
-      gender: profile.gender,
-      age: profile.age,
-      age_group: profile.age_group,
-      country_id: profile.country_id,
-    };
-  }
-
   async createProfile(name: string) {
     const normalizedName = name.trim().toLowerCase();
 
-    // Check idempotency
     const existingProfile = findProfileByName(normalizedName);
-
     if (existingProfile) {
       return {
         isExisting: true,
@@ -41,7 +31,6 @@ export class ProfilesService {
       };
     }
 
-    // Call external APIs concurrently
     let genderizeResponse, agifyResponse, nationalizeResponse;
     try {
       const [genderize, agify, nationalize] = await Promise.all([
@@ -56,34 +45,31 @@ export class ProfilesService {
       const url = error?.config?.url || '';
       if (url.includes('genderize')) {
         throw new BadGatewayException('Genderize returned an invalid response');
-      } else if (url.includes('agify')) {
-        throw new BadGatewayException('Agify returned an invalid response');
-      } else if (url.includes('nationalize')) {
-        throw new BadGatewayException('Nationalize returned an invalid response');
-      } else {
-        throw new BadGatewayException('Downstream API failure');
       }
+      if (url.includes('agify')) {
+        throw new BadGatewayException('Agify returned an invalid response');
+      }
+      if (url.includes('nationalize')) {
+        throw new BadGatewayException('Nationalize returned an invalid response');
+      }
+      throw new BadGatewayException('Downstream API failure');
     }
 
-    // Validate Genderize
     if (!genderizeResponse || genderizeResponse.gender === null || genderizeResponse.count === 0) {
       throw new BadGatewayException('Genderize returned an invalid response');
     }
 
-    // Validate Agify
     if (!agifyResponse || agifyResponse.age === null) {
       throw new BadGatewayException('Agify returned an invalid response');
     }
 
-    // Validate Nationalize
     if (!nationalizeResponse || !nationalizeResponse.country || nationalizeResponse.country.length === 0) {
       throw new BadGatewayException('Nationalize returned an invalid response');
     }
 
-    const { gender, probability: gender_probability, count: sample_size } = genderizeResponse;
+    const { gender, probability: gender_probability } = genderizeResponse;
     const { age } = agifyResponse;
 
-    // Get highest probability country
     const highestCountry = nationalizeResponse.country.reduce((prev: any, current: any) => {
       return prev.probability > current.probability ? prev : current;
     });
@@ -91,7 +77,7 @@ export class ProfilesService {
     const country_id = highestCountry.country_id;
     const country_probability = highestCountry.probability;
 
-    let age_group = '';
+    let age_group: ProfileRecord['age_group'];
     if (age <= 12) {
       age_group = 'child';
     } else if (age <= 19) {
@@ -102,22 +88,21 @@ export class ProfilesService {
       age_group = 'senior';
     }
 
-    const newProfile = {
-      id: uuidv7(),
+    const newProfile: ProfileRecord = {
+      id: createUuidV7(),
       name: normalizedName,
       gender,
       gender_probability,
-      sample_size,
       age,
       age_group,
       country_id,
+      country_name: getCountryNameByCode(country_id),
       country_probability,
       created_at: new Date().toISOString(),
     };
 
     try {
       const inserted = insertProfile(newProfile);
-
       return {
         isExisting: false,
         profile: inserted,
@@ -145,12 +130,8 @@ export class ProfilesService {
     return profile;
   }
 
-  async findByName(name: string) {
-    return findProfileByName(name);
-  }
-
-  async findAll(query: { gender?: string; country_id?: string; age_group?: string }) {
-    return listProfiles(query).map((profile) => this.getSummaryProfile(profile));
+  async findAll(query: ValidatedProfileQuery): Promise<ProfileQueryResult> {
+    return queryProfiles(query.filters, query.options);
   }
 
   async remove(id: string) {

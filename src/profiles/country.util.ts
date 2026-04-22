@@ -1,0 +1,98 @@
+const AFRICAN_COUNTRIES: Array<{ code: string; name: string; aliases?: string[] }> = [
+  { code: 'DZ', name: 'Algeria' },
+  { code: 'AO', name: 'Angola' },
+  { code: 'BJ', name: 'Benin' },
+  { code: 'BW', name: 'Botswana' },
+  { code: 'BF', name: 'Burkina Faso' },
+  { code: 'BI', name: 'Burundi' },
+  { code: 'CM', name: 'Cameroon' },
+  { code: 'CV', name: 'Cape Verde', aliases: ['cabo verde'] },
+  { code: 'CF', name: 'Central African Republic' },
+  { code: 'TD', name: 'Chad' },
+  { code: 'KM', name: 'Comoros' },
+  { code: 'CD', name: 'Democratic Republic of the Congo', aliases: ['dr congo', 'drc', 'congo kinshasa'] },
+  { code: 'DJ', name: 'Djibouti' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'GQ', name: 'Equatorial Guinea' },
+  { code: 'ER', name: 'Eritrea' },
+  { code: 'SZ', name: 'Eswatini', aliases: ['swaziland'] },
+  { code: 'ET', name: 'Ethiopia' },
+  { code: 'GA', name: 'Gabon' },
+  { code: 'GM', name: 'Gambia', aliases: ['the gambia'] },
+  { code: 'GH', name: 'Ghana' },
+  { code: 'GN', name: 'Guinea' },
+  { code: 'GW', name: 'Guinea-Bissau' },
+  { code: 'CI', name: "Cote d'Ivoire", aliases: ['ivory coast', "cote d ivoire"] },
+  { code: 'KE', name: 'Kenya' },
+  { code: 'LS', name: 'Lesotho' },
+  { code: 'LR', name: 'Liberia' },
+  { code: 'LY', name: 'Libya' },
+  { code: 'MG', name: 'Madagascar' },
+  { code: 'MW', name: 'Malawi' },
+  { code: 'ML', name: 'Mali' },
+  { code: 'MR', name: 'Mauritania' },
+  { code: 'MU', name: 'Mauritius' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'MZ', name: 'Mozambique' },
+  { code: 'NA', name: 'Namibia' },
+  { code: 'NE', name: 'Niger' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'CG', name: 'Republic of the Congo', aliases: ['congo brazzaville', 'congo'] },
+  { code: 'RW', name: 'Rwanda' },
+  { code: 'ST', name: 'Sao Tome and Principe', aliases: ['sao tome'] },
+  { code: 'SN', name: 'Senegal' },
+  { code: 'SC', name: 'Seychelles' },
+  { code: 'SL', name: 'Sierra Leone' },
+  { code: 'SO', name: 'Somalia' },
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'SS', name: 'South Sudan' },
+  { code: 'SD', name: 'Sudan' },
+  { code: 'TZ', name: 'Tanzania' },
+  { code: 'TG', name: 'Togo' },
+  { code: 'TN', name: 'Tunisia' },
+  { code: 'UG', name: 'Uganda' },
+  { code: 'ZM', name: 'Zambia' },
+  { code: 'ZW', name: 'Zimbabwe' },
+];
+
+function normalizeCountryText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+const codeToName = new Map<string, string>();
+const nameToCode = new Map<string, string>();
+
+for (const country of AFRICAN_COUNTRIES) {
+  codeToName.set(country.code, country.name);
+  nameToCode.set(normalizeCountryText(country.name), country.code);
+
+  for (const alias of country.aliases ?? []) {
+    nameToCode.set(normalizeCountryText(alias), country.code);
+  }
+}
+
+export function getCountryNameByCode(code: string): string {
+  const normalizedCode = code.trim().toUpperCase();
+  return codeToName.get(normalizedCode) ?? normalizedCode;
+}
+
+export function getCountryCodeByName(name: string): string | null {
+  return nameToCode.get(normalizeCountryText(name)) ?? null;
+}
+
+export function findCountryCodeInText(text: string): string | null {
+  const normalized = normalizeCountryText(text);
+
+  for (const [name, code] of nameToCode.entries()) {
+    const pattern = new RegExp(`(^|\\s)${name.replace(/\s+/g, '\\s+')}($|\\s)`);
+    if (pattern.test(normalized)) {
+      return code;
+    }
+  }
+
+  return null;
+}
